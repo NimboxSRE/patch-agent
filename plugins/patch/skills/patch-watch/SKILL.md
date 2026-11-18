@@ -20,7 +20,7 @@ El ejecutable va en el plugin: `bin/patch-watch.mjs` (necesita Node 20 o posteri
 Ya viene con el plugin: es el servidor MCP `patch-watch`. Solo hay que arrancar Claude Code con el canal activado. Mientras los canales estén en *research preview* y este no esté en la lista aprobada:
 
 ```sh
-claude --dangerously-load-development-channels plugin:patch@patch-agent
+claude --dangerously-load-development-channels plugin:patch@nimboxsre
 ```
 
 Solo funciona en sesión interactiva (no con `-p`). Para comprobarlo, llama a la herramienta `patch_watch_status`; `patch_watch_poll_now` fuerza una comprobación. Si las organizaciones Team o Enterprise bloquean los canales, lo tiene que habilitar un administrador.

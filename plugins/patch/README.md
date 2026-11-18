@@ -14,8 +14,8 @@ Incluye:
 ### Claude Code
 
 ```sh
-claude plugin marketplace add nimboxsre/patch-agent   # o la ruta local del repo
-claude plugin install patch@patch-agent
+claude plugin marketplace add NimboxSRE/patch-agent   # o la ruta local del repo
+claude plugin install patch@nimboxsre
 ```
 
 Al activarlo, Claude Code te pide el token de Patch y lo guarda en el almacén seguro del sistema, no en `settings.json`.
@@ -23,7 +23,7 @@ Al activarlo, Claude Code te pide el token de Patch y lo guarda en el almacén s
 Para que la sesión reciba los avisos de patch-watch, arranca con el canal activado. Mientras los canales estén en *research preview*:
 
 ```sh
-claude --dangerously-load-development-channels plugin:patch@patch-agent
+claude --dangerously-load-development-channels plugin:patch@nimboxsre
 ```
 
 Los avisos llegan como `<channel source="patch-watch" severity="critical">…` y Claude los trata con la skill `patch-triage`. Sin ese flag, el plugin funciona igual pero sin avisos: el MCP de Patch y las skills siguen disponibles.
@@ -31,8 +31,8 @@ Los avisos llegan como `<channel source="patch-watch" severity="critical">…` y
 ### Codex
 
 ```sh
-codex plugin marketplace add nimboxsre/patch-agent   # o la ruta local del repo
-codex plugin add patch@patch-agent
+codex plugin marketplace add NimboxSRE/patch-agent   # o la ruta local del repo
+codex plugin add patch@nimboxsre
 export PATCH_TOKEN=pmk_…   # el MCP de Patch lo lee de aquí
 ```
 

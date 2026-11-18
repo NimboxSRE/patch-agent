@@ -1,5 +1,5 @@
 {
-  "name": "patch-agent",
+  "name": "nimboxsre",
   "owner": { "name": "NimboxSRE", "email": "hola@patchsre.com" },
   "metadata": { "description": "Plugins de Patch by NimboxSRE para agentes." },
   "plugins": [

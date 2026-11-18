@@ -1,5 +1,5 @@
 {
-  "name": "patch-agent",
+  "name": "nimboxsre",
   "interface": { "displayName": "Patch by NimboxSRE" },
   "plugins": [
     {
