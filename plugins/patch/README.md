@@ -68,10 +68,10 @@ Para k3s hay un `Dockerfile` y `deploy/k8s/patch-watch.yaml` en el repositorio, 
 ## Cómo funciona
 
 - **Solo sale, nunca escucha.** patch-watch llama al MCP de Patch con tu token; no abre puertos.
-- **Qué vigila.** Usa `new_vulnerabilities` (con `since`), `security_findings` y, si el token la tiene, `list_jobs`. Descubre las herramientas al conectar y se salta las que tu token no ve (`patch-watch doctor` te lo dice).
+- **Qué vigila.** Para cada cliente de `list_clients` (uno con token de cliente, todos los del MSP con token de MSP), consulta `new_vulnerabilities` (con `since`), `security_findings` y `list_jobs`. Avisa de cada par CVE+servidor nuevo, también cuando una CVE conocida llega a otro servidor; de cada hallazgo nuevo; y de cada tarea cuando ya no le quedan servidores pendientes. `patch-watch doctor` dice qué herramientas y clientes ve tu token.
 - **Sin avalanchas.** La primera pasada solo toma nota de lo que ya existe; después avisa una vez de cada cosa nueva, o de cada cambio de estado de una tarea. Todo lo de una pasada va en un único aviso, así que es un solo turno del agente.
 - **Sin pérdidas.** Si un destino falla, no guarda el estado y lo reintenta en la siguiente pasada.
-- **Gravedad.** Una CVE en KEV es `critical`; si no, cuenta la gravedad declarada y luego el CVSS. Una tarea fallida o no verificada es `high`.
+- **Gravedad.** Una CVE explotada (KEV) es `critical`; si no, la gravedad que da Patch. Hallazgos: `bad` es `high`, `warn` es `medium`, `info` es `info`. Una tarea con algún servidor `failed` o `rejected` es `high`; terminada sin fallos, `medium`.
 
 ## Seguridad
 

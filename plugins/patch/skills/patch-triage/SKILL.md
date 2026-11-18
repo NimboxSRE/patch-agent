@@ -16,6 +16,9 @@ Patch sabe qué CVE afectan de verdad a cada servidor (paquetes, kernel en uso, 
 
 ## Flujo
 
+### 0. Qué cliente
+Con un token de MSP, todas las herramientas (salvo `list_clients`) exigen el parámetro `client`. Sácalo de `list_clients` o del aviso de patch-watch, que siempre lo trae. Con un token de cliente no hace falta. `fleet_summary` da el estado general de un cliente y qué conviene hacer ahora.
+
 ### 1. Qué hay de nuevo
 - `new_vulnerabilities`: lo nuevo y el veredicto por servidor (afectado, no afectado, mitigado).
 - `security_findings`: lo que no es una CVE (Redis, bases de datos o API de Docker expuestos, software sin soporte, servicios caídos, repositorios rotos, reinicios pendientes).
@@ -23,10 +26,12 @@ Patch sabe qué CVE afectan de verdad a cada servidor (paquetes, kernel en uso, 
 Si vienes de un aviso de patch-watch, empieza por los elementos del aviso y confirma su estado actual con estas herramientas: puede haber cambiado desde que se generó.
 
 ### 2. Cuánto importa
-Para cada CVE que afecte a algo, `get_vulnerability`: exposición real, quién puede atacar y en qué condiciones, si hay exploit público, si está en el catálogo KEV de CISA y su EPSS. Ordena así:
+Para cada CVE que afecte a algo, `get_vulnerability`: veredicto de la IA por servidor (`affected`, `not_affected`, `mitigated`, `unknown`), exposición real, quién puede atacar y en qué condiciones, si hay exploit público, si está en el catálogo KEV de CISA y su EPSS. Ordena así:
 1. En KEV o con exploit público y expuesta → urgente.
 2. CVSS alto y alcanzable en ese servidor → alta.
 3. Afecta al paquete pero no es alcanzable (módulo no cargado, servicio que no corre, puerto cerrado) → dilo y no la trates como urgente.
+
+No toques lo que la IA da por `not_affected` salvo que te lo pidan.
 
 Antes de proponer nada, mira si ya hay notas: no repitas una investigación hecha.
 
@@ -35,7 +40,7 @@ Antes de proponer nada, mira si ya hay notas: no repitas una investigación hech
 
 ### 4. Proponer o preparar
 - **Sin permiso de parcheo** (o si la persona no ha dicho que sí): `propose_job` con el plan. Una persona la firma en el navegador.
-- **Con permiso de parcheo y autorización explícita:** `prepare_job` → firma con la clave aprobada → `submit_signed_job`. Antes de firmar, enseña a la persona qué hace exactamente: acciones, servidores, CVE, si reinicia y en qué ventana.
+- **Con permiso de parcheo y autorización explícita:** `prepare_job` devuelve la tarea (payload en base64) → fírmala con la clave ed25519 aprobada (`pmctl sign` con `PM_KEY` apuntando a la clave) → `submit_signed_job`. Para muchos servidores usa rollout (canario) y reboot `only_if_required`. Antes de firmar, enseña a la persona qué hace exactamente: acciones, servidores, CVE, si reinicia y en qué ventana.
 
 ### 5. Verificar
 `get_job` hasta que termine. El veredicto es verificado, aplicado con avisos o no verificado. Comprueba que la CVE ya no aparece y que no ha caído ningún servicio. Si el canario falla, no sigas: resume el error y propón deshacer o investigar.

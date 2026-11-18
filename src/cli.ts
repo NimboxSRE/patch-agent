@@ -45,6 +45,8 @@ async function main(): Promise<void> {
       const patch = new PatchClient(cfg.mcpUrl, cfg.token);
       await patch.connect();
       console.log(`Conectado. Herramientas de Patch: ${patch.toolNames().join(', ')}`);
+      const clients = (await patch.call('list_clients')) as { client?: string; active?: boolean }[];
+      console.log(`Clientes: ${clients.filter((c) => c.active !== false).map((c) => c.client).join(', ') || '(ninguno)'}`);
       for (const w of WATCHES) console.log(`  ${patch.has(w.tool) ? '✓' : '·'} ${w.tool}${patch.has(w.tool) ? '' : ' (no disponible con este token; no se vigila)'}`);
       await patch.close();
       return;

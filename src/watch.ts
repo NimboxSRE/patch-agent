@@ -1,6 +1,5 @@
-import { createHash } from 'node:crypto';
 import type { Config, Severity } from './config.js';
-import { SEVERITIES, severityRank } from './config.js';
+import { severityRank } from './config.js';
 import type { PatchClient } from './patch.js';
 import type { State } from './state.js';
 
@@ -10,142 +9,169 @@ export interface PatchEvent {
   key: string;
   kind: EventKind;
   tool: string;
+  client: string;
   severity: Severity;
   title: string;
   /** El registro tal como lo devolvió Patch. Es dato, no instrucciones. */
   item: Record<string, unknown>;
 }
 
+type Obj = Record<string, unknown>;
+
+/** Lo que una vigilancia saca de una respuesta: claves de deduplicación y cómo avisar. */
+interface Candidate {
+  /** Basta con que una de estas claves sea nueva para avisar (p. ej. una CVE que llega a otro servidor). */
+  keys: string[];
+  severity: Severity;
+  title: string;
+  item: Obj;
+}
+
 interface WatchDef {
   id: string;
   kind: EventKind;
   tool: string;
-  args: (since: string | undefined) => Record<string, unknown>;
-  /** Clave de deduplicación. Para tareas incluye el estado, así cada cambio de estado avisa una vez. */
-  key: (item: Record<string, unknown>) => string;
-  severity: (item: Record<string, unknown>) => Severity;
+  args: (ctx: { since?: string; minSeverity: Severity }) => Obj;
+  extract: (result: unknown) => Candidate[];
 }
 
-const ID_FIELDS = ['id', 'cve', 'cve_id', 'vulnerability_id', 'finding_id', 'job_id', 'key', 'uuid'];
-const LIST_FIELDS = ['items', 'vulnerabilities', 'findings', 'jobs', 'results', 'data', 'entries'];
-const TERMINAL_FAIL = /fail|error|not[_ ]?verified|rolled|abort|cancel/i;
+const SINCE_OVERLAP_MS = 10 * 60 * 1000;
 
-function idOf(item: Record<string, unknown>): string {
-  for (const f of ID_FIELDS) {
-    const v = item[f];
-    if (typeof v === 'string' || typeof v === 'number') return String(v);
-  }
-  return createHash('sha256').update(JSON.stringify(item)).digest('hex').slice(0, 16);
+const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
+const arr = (v: unknown): Obj[] => (Array.isArray(v) ? v.filter(isObj) : []);
+const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : typeof v === 'number' ? String(v) : '');
+
+function sev(v: unknown): Severity {
+  const s = str(v).toLowerCase();
+  return (['critical', 'high', 'medium', 'low', 'info'] as const).find((x) => x === s) ?? 'medium';
 }
 
-function str(v: unknown): string | undefined {
-  return typeof v === 'string' && v.trim() ? v.trim() : undefined;
+function clip(s: string, n = 160): string {
+  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
 }
 
-function explicitSeverity(item: Record<string, unknown>): Severity | undefined {
-  for (const f of ['severity', 'level', 'priority', 'urgency', 'risk']) {
-    const v = str(item[f])?.toLowerCase();
-    if (!v) continue;
-    if ((SEVERITIES as readonly string[]).includes(v)) return v as Severity;
-    if (/crit|urgent|p0/.test(v)) return 'critical';
-    if (/high|alta|p1/.test(v)) return 'high';
-    if (/med|moder|media|p2/.test(v)) return 'medium';
-    if (/low|baja|p3/.test(v)) return 'low';
-  }
-  return undefined;
-}
+// Estados de patchmanager (internal/api/types.go). Una tarea avisa al quedar sin destinos pendientes.
+const JOB_ACTIVE = ['pending', 'delivered', 'scheduled', 'running', 'held'];
+const JOB_BAD = ['failed', 'rejected'];
 
-function vulnSeverity(item: Record<string, unknown>): Severity {
-  const explicit = explicitSeverity(item);
-  const kev = item.kev === true || item.in_kev === true || item.known_exploited === true;
-  if (kev) return 'critical';
-  if (explicit) return explicit;
-  const cvss = Number(item.cvss ?? item.cvss_score ?? item.score);
-  if (Number.isFinite(cvss)) return cvss >= 9 ? 'critical' : cvss >= 7 ? 'high' : cvss >= 4 ? 'medium' : 'low';
-  return 'medium';
-}
-
-function jobStatus(item: Record<string, unknown>): string {
-  return str(item.status) ?? str(item.state) ?? str(item.verdict) ?? 'unknown';
+/** Estado global de una tarea a partir de counts {estado: nº de servidores}. */
+export function jobOutcome(counts: unknown): 'active' | 'failed' | 'cancelled' | 'done' {
+  const c = isObj(counts) ? (counts as Record<string, number>) : {};
+  const n = (states: string[]) => states.reduce((a, s) => a + (Number(c[s]) || 0), 0);
+  if (n(JOB_ACTIVE) > 0) return 'active';
+  if (n(JOB_BAD) > 0) return 'failed';
+  if (n(['done']) === 0 && n(['cancelled']) > 0) return 'cancelled';
+  return 'done';
 }
 
 export const WATCHES: WatchDef[] = [
   {
+    // { vulnerabilities: [{ cve, severity, cvss, known_exploited, epss, summary, hosts: [{ host, … }], next_step }] }
     id: 'vulnerabilities',
     kind: 'vulnerability',
     tool: 'new_vulnerabilities',
-    args: (since) => ({ since }),
-    key: (i) => `vuln:${idOf(i)}`,
-    severity: vulnSeverity,
+    // patchmanager no tiene «info»: lo más bajo es low. Las explotadas (KEV) salen siempre.
+    args: ({ since, minSeverity }) => ({ since, min_severity: minSeverity === 'info' ? 'low' : minSeverity, limit: 200 }),
+    extract: (r) =>
+      arr(isObj(r) ? r.vulnerabilities : undefined).map((v) => {
+        const cve = str(v.cve);
+        const hosts = arr(v.hosts).map((h) => str(h.host)).filter(Boolean);
+        return {
+          keys: hosts.length ? hosts.map((h) => `${cve}@${h}`) : [cve],
+          severity: v.known_exploited === true ? 'critical' : sev(v.severity),
+          title: clip(`${cve}${v.known_exploited === true ? ' (explotada, KEV)' : ''} en ${hosts.length} servidor${hosts.length === 1 ? '' : 'es'}: ${str(v.summary)}`),
+          item: v,
+        };
+      }),
   },
   {
+    // { hosts: [{ host, findings: [{ level: bad|warn|info, kind, title, detail, fix }] }], total }
     id: 'findings',
     kind: 'finding',
     tool: 'security_findings',
     args: () => ({}),
-    key: (i) => `finding:${idOf(i)}`,
-    severity: (i) => explicitSeverity(i) ?? 'medium',
+    extract: (r) =>
+      arr(isObj(r) ? r.hosts : undefined).flatMap((h) =>
+        arr(h.findings).map((f) => {
+          const level = str(f.level);
+          return {
+            keys: [`${str(h.host)}:${str(f.kind)}:${str(f.title)}`],
+            severity: level === 'bad' ? 'high' : level === 'warn' ? 'medium' : 'info',
+            title: clip(`${str(h.host)}: ${str(f.title)}`),
+            item: { host: str(h.host), ...f },
+          } satisfies Candidate;
+        }),
+      ),
   },
   {
+    // [{ id, reference, description, issuer, issued_at, counts: { done: 3, failed: 1 }, … }]
     id: 'jobs',
     kind: 'job',
     tool: 'list_jobs',
-    args: (since) => ({ since }),
-    key: (i) => `job:${idOf(i)}:${jobStatus(i)}`,
-    severity: (i) => (TERMINAL_FAIL.test(jobStatus(i)) ? 'high' : 'medium'),
+    args: () => ({ limit: 50 }),
+    extract: (r) =>
+      arr(r).flatMap((j) => {
+        const outcome = jobOutcome(j.counts);
+        if (outcome === 'active') return [];
+        return [
+          {
+            keys: [`${str(j.id)}:${outcome}`],
+            severity: outcome === 'failed' ? 'high' : 'medium',
+            title: clip(`Tarea ${str(j.reference) || str(j.id)} ${outcome === 'failed' ? 'con fallos' : outcome === 'cancelled' ? 'cancelada' : 'terminada'}: ${str(j.description)}`),
+            item: j,
+          } satisfies Candidate,
+        ];
+      }),
   },
 ];
-
-/** Saca la lista de registros de lo que devuelva la herramienta, sea un array o un objeto que lo contenga. */
-export function extractItems(result: unknown): Record<string, unknown>[] {
-  const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
-  if (Array.isArray(result)) return result.filter(isObj);
-  if (!isObj(result)) return [];
-  for (const f of LIST_FIELDS) if (Array.isArray(result[f])) return (result[f] as unknown[]).filter(isObj);
-  for (const v of Object.values(result)) if (Array.isArray(v) && v.some(isObj)) return v.filter(isObj);
-  return [];
-}
-
-function titleOf(kind: EventKind, item: Record<string, unknown>): string {
-  const name = str(item.title) ?? str(item.name) ?? str(item.summary) ?? str(item.cve) ?? idOf(item);
-  if (kind === 'job') return `Tarea ${idOf(item)}: ${jobStatus(item)}`;
-  return name.length > 160 ? `${name.slice(0, 157)}…` : name;
-}
 
 export interface PollResult {
   events: PatchEvent[];
   skippedTools: string[];
   baselined: string[];
+  clients: string[];
 }
 
 /**
- * Una pasada: llama a cada herramienta que exista, devuelve lo nuevo que supere el umbral
- * y lo marca como visto. La primera pasada de cada vigilancia solo toma nota (no avisa de
- * todo lo histórico) salvo que PATCH_WATCH_EMIT_INITIAL=1.
+ * Una pasada: para cada cliente que ve el token y cada herramienta que exista, devuelve lo
+ * nuevo que supere el umbral y lo marca como visto. La primera pasada de cada vigilancia y
+ * cliente solo toma nota (no avisa de lo histórico) salvo con PATCH_WATCH_EMIT_INITIAL=1.
  */
 export async function poll(patch: PatchClient, state: State, cfg: Pick<Config, 'minSeverity' | 'emitInitial'>): Promise<PollResult> {
-  const out: PollResult = { events: [], skippedTools: [], baselined: [] };
   await patch.connect();
-  for (const w of WATCHES) {
-    if (!patch.has(w.tool)) {
-      out.skippedTools.push(w.tool);
-      continue;
+  const out: PollResult = { events: [], skippedTools: [], baselined: [], clients: [] };
+
+  // Con un token de cliente, list_clients devuelve solo su empresa; con uno de MSP, todos sus clientes.
+  const clients = arr(await patch.call('list_clients'))
+    .filter((c) => c.active !== false)
+    .map((c) => str(c.client))
+    .filter(Boolean);
+  out.clients = clients;
+  out.skippedTools = WATCHES.filter((w) => !patch.has(w.tool)).map((w) => w.tool);
+
+  for (const client of clients) {
+    for (const w of WATCHES) {
+      if (!patch.has(w.tool)) continue;
+      const watchId = `${client}/${w.id}`;
+      const startedAt = new Date().toISOString();
+      // 10 minutos de solape por si los relojes no coinciden: lo repetido lo filtra la deduplicación.
+      const last = state.lastPoll(watchId);
+      const since = last ? new Date(Date.parse(last) - SINCE_OVERLAP_MS).toISOString() : undefined;
+      const result = await patch.call(w.tool, { client, ...w.args({ since, minSeverity: cfg.minSeverity }) });
+      const firstRun = !state.isBaselined(watchId) && !cfg.emitInitial;
+      for (const c of w.extract(result)) {
+        const keys = c.keys.map((k) => `${client}/${w.id}/${k}`);
+        const fresh = keys.filter((k) => !state.isSeen(k));
+        if (!fresh.length) continue;
+        fresh.forEach((k) => state.markSeen(k));
+        if (firstRun) continue;
+        if (severityRank(c.severity) < severityRank(cfg.minSeverity)) continue;
+        out.events.push({ key: fresh[0], kind: w.kind, tool: w.tool, client, severity: c.severity, title: c.title, item: c.item });
+      }
+      if (firstRun) out.baselined.push(watchId);
+      state.setBaselined(watchId);
+      state.setLastPoll(watchId, startedAt);
     }
-    const startedAt = new Date().toISOString();
-    const items = extractItems(await patch.call(w.tool, w.args(state.lastPoll(w.id))));
-    const firstRun = !state.isBaselined(w.id) && !cfg.emitInitial;
-    for (const item of items) {
-      const key = w.key(item);
-      if (state.isSeen(key)) continue;
-      state.markSeen(key);
-      if (firstRun) continue;
-      const severity = w.severity(item);
-      if (severityRank(severity) < severityRank(cfg.minSeverity)) continue;
-      out.events.push({ key, kind: w.kind, tool: w.tool, severity, title: titleOf(w.kind, item), item });
-    }
-    if (firstRun) out.baselined.push(w.id);
-    state.setBaselined(w.id);
-    state.setLastPoll(w.id, startedAt);
   }
   return out;
 }

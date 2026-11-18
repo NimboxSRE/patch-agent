@@ -25,6 +25,7 @@ export async function runChannel(cfg: Config): Promise<void> {
     lastError: cfg.token ? undefined : 'Falta PATCH_TOKEN: exporta el token pmk_ antes de arrancar Claude Code.',
     eventsSent: 0,
     skippedTools: [] as string[],
+    clients: [] as string[],
   };
 
   const mcp = new Server(
@@ -42,12 +43,18 @@ export async function runChannel(cfg: Config): Promise<void> {
         status.lastPollAt = new Date().toISOString();
         status.lastError = undefined;
         status.skippedTools = res.skippedTools;
+        status.clients = res.clients;
         if (res.events.length) {
           await mcp.notification({
             method: 'notifications/claude/channel',
             params: {
               content: renderMessage(res.events),
-              meta: { kind: [...new Set(res.events.map((e) => e.kind))].join('_'), severity: topSeverity(res.events), count: String(res.events.length) },
+              meta: {
+                kind: [...new Set(res.events.map((e) => e.kind))].join('_'),
+                client: [...new Set(res.events.map((e) => e.client))].join('_'),
+                severity: topSeverity(res.events),
+                count: String(res.events.length),
+              },
             },
           });
           status.eventsSent += res.events.length;
