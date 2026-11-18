@@ -1,0 +1,45 @@
+{
+  "name": "patch",
+  "version": "0.1.0",
+  "description": "Patch by NimboxSRE en Codex: servidor MCP de Patch y skills para triar CVE, proponer y verificar parches firmados.",
+  "author": {
+    "name": "NimboxSRE",
+    "email": "hola@patchsre.com",
+    "url": "https://patchsre.com"
+  },
+  "homepage": "https://patchsre.com",
+  "license": "UNLICENSED",
+  "keywords": [
+    "patch",
+    "patching",
+    "cve",
+    "linux",
+    "sre",
+    "msp",
+    "security"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.codex-mcp.json",
+  "interface": {
+    "displayName": "Patch",
+    "shortDescription": "Parcheo Linux con firma: tu agente prepara, tú decides",
+    "longDescription": "Conecta Codex con Patch by NimboxSRE: consulta qué CVE afectan de verdad a cada servidor, prepara planes de parcheo, deja propuestas o tareas firmadas con una clave aprobada y verifica el resultado. Con patch-watch (daemon) Codex recibe las novedades en una sesión sin que se lo pidas.",
+    "developerName": "NimboxSRE",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://patchsre.com",
+    "defaultPrompt": [
+      "¿Qué vulnerabilidades nuevas afectan hoy a mis servidores?",
+      "Prepara el plan de parcheo de la CVE más urgente",
+      "¿Cómo ha ido la última tarea de parcheo?"
+    ],
+    "brandColor": "#D7262D",
+    "logo": "./assets/logo.png",
+    "composerIcon": "./assets/logo.svg",
+    "privacyPolicyURL": "https://patchsre.com/privacidad/"
+  }
+}

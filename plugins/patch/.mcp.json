@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "patch": {
+      "type": "http",
+      "url": "${user_config.patch_mcp_url}",
+      "headers": { "Authorization": "Bearer ${user_config.patch_token}" }
+    },
+    "patch-watch": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/bin/patch-watch.mjs", "channel"],
+      "env": {
+        "PATCH_TOKEN": "${user_config.patch_token}",
+        "PATCH_MCP_URL": "${user_config.patch_mcp_url}",
+        "PATCH_WATCH_MIN_SEVERITY": "${user_config.min_severity}",
+        "PATCH_WATCH_INTERVAL": "${user_config.interval}",
+        "PATCH_WATCH_STATE": "${CLAUDE_PLUGIN_DATA}/state.json"
+      }
+    }
+  }
+}

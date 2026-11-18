@@ -1,0 +1,24 @@
+{
+  "name": "patch-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plugin de Claude Code y Codex para Patch by NimboxSRE, con patch-watch: avisa al agente de lo nuevo en Patch.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "engines": { "node": ">=20" },
+  "bin": { "patch-watch": "plugins/patch/bin/patch-watch.mjs" },
+  "scripts": {
+    "build": "esbuild src/cli.ts --bundle --platform=node --target=node20 --format=esm --outfile=plugins/patch/bin/patch-watch.mjs --banner:js='#!/usr/bin/env node\nimport { createRequire as __cr } from \"node:module\"; const require = __cr(import.meta.url);'",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test --experimental-strip-types test/*.test.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "22",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "patch-agent",
+  "owner": { "name": "NimboxSRE", "email": "hola@patchsre.com" },
+  "metadata": { "description": "Plugins de Patch by NimboxSRE para agentes." },
+  "plugins": [
+    {
+      "name": "patch",
+      "source": "./plugins/patch",
+      "description": "Servidor MCP de Patch, skill de triaje y canal patch-watch.",
+      "category": "security"
+    }
+  ]
+}

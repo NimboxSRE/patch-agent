@@ -1,0 +1,64 @@
+{
+  "name": "patch",
+  "version": "0.1.0",
+  "description": "Patch by NimboxSRE en tu agente: servidor MCP de Patch, skill de triaje y patch-watch, que avisa a la sesión de las CVE nuevas, hallazgos y tareas.",
+  "author": {
+    "name": "NimboxSRE",
+    "email": "hola@patchsre.com",
+    "url": "https://patchsre.com"
+  },
+  "homepage": "https://patchsre.com",
+  "privacyPolicyUrl": "https://patchsre.com/privacidad/",
+  "keywords": [
+    "patch",
+    "patching",
+    "cve",
+    "linux",
+    "sre",
+    "msp",
+    "security"
+  ],
+  "userConfig": {
+    "patch_token": {
+      "type": "string",
+      "title": "Token de Patch (pmk_…)",
+      "description": "Token del agente creado en Patch. Su nivel (consultar; consultar y proponer; consultar, proponer y parchear) decide lo que el agente puede hacer.",
+      "required": true,
+      "sensitive": true
+    },
+    "patch_mcp_url": {
+      "type": "string",
+      "title": "URL del MCP de Patch",
+      "description": "Cámbiala solo si tu Patch usa dominio propio.",
+      "default": "https://patch.nimboxsre.com/mcp"
+    },
+    "min_severity": {
+      "type": "string",
+      "title": "Gravedad mínima para avisar",
+      "description": "patch-watch solo despierta a la sesión con novedades de esta gravedad o más.",
+      "options": [
+        "critical",
+        "high",
+        "medium",
+        "low",
+        "info"
+      ],
+      "default": "high"
+    },
+    "interval": {
+      "type": "number",
+      "title": "Cada cuántos segundos comprobar",
+      "description": "Intervalo de patch-watch en modo canal.",
+      "default": 300,
+      "min": 30,
+      "max": 86400
+    }
+  },
+  "channels": [
+    {
+      "server": "patch-watch",
+      "displayName": "Patch"
+    }
+  ],
+  "license": "UNLICENSED"
+}

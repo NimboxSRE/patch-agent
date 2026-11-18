@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "patch": {
+      "type": "http",
+      "url": "https://patch.nimboxsre.com/mcp",
+      "bearer_token_env_var": "PATCH_TOKEN"
+    }
+  }
+}

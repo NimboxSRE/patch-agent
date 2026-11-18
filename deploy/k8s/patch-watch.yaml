@@ -1,0 +1,62 @@
+# patch-watch como daemon en k3s. Avisa por http (routine de Claude, n8n, receptor propio).
+# Antes de aplicar:
+#   kubectl -n patch-watch create secret generic patch-watch \
+#     --from-literal=PATCH_TOKEN=pmk_… \
+#     --from-literal=PATCH_WATCH_WEBHOOK_URL=https://… \
+#     --from-literal=PATCH_WATCH_WEBHOOK_SECRET=…
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: patch-watch
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: patch-watch-state
+  namespace: patch-watch
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 64Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patch-watch
+  namespace: patch-watch
+spec:
+  replicas: 1 # una sola réplica: el estado de deduplicación no se comparte
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: patch-watch }
+  template:
+    metadata:
+      labels: { app: patch-watch }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 101
+      containers:
+        - name: patch-watch
+          image: ghcr.io/nimboxsre/patch-watch:0.1.0 # cámbiala por tu registro
+          args: [daemon]
+          env:
+            - { name: PATCH_WATCH_SINKS, value: http }
+            - { name: PATCH_WATCH_MIN_SEVERITY, value: high }
+            - { name: PATCH_WATCH_INTERVAL, value: "300" }
+          envFrom:
+            - secretRef: { name: patch-watch }
+          volumeMounts:
+            - { name: state, mountPath: /state }
+          resources:
+            requests: { cpu: 10m, memory: 48Mi }
+            limits: { memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+      volumes:
+        - name: state
+          persistentVolumeClaim: { claimName: patch-watch-state }
