@@ -121,6 +121,9 @@ describe('token de un cliente', () => {
     const r = await once(env);
     assert.deepEqual(r.events.map((e) => [e.key.split('/').pop(), e.severity]), [['j1:failed', 'high']]);
     assert.match(r.events[0].title, /PATCH-7 con fallos/);
+    const jobCall = mock.calls.filter((c) => c.tool === 'list_jobs').at(-1)!;
+    assert.ok(jobCall.args.since, 'pasa since a list_jobs');
+    assert.equal(jobCall.args.limit, 200);
     assert.deepEqual((await once(env)).events, []);
   });
 

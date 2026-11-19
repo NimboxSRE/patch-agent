@@ -105,10 +105,11 @@ export const WATCHES: WatchDef[] = [
   },
   {
     // [{ id, reference, description, issuer, issued_at, counts: { done: 3, failed: 1 }, … }]
+    // Con since (patchmanager ≥ d9d7b5e) solo llegan las que se han movido; sin él, las últimas.
     id: 'jobs',
     kind: 'job',
     tool: 'list_jobs',
-    args: () => ({ limit: 50 }),
+    args: ({ since }) => ({ since, limit: 200 }),
     extract: (r) =>
       arr(r).flatMap((j) => {
         const outcome = jobOutcome(j.counts);

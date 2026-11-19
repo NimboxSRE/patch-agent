@@ -22,7 +22,7 @@ const TOOLS = [
   { name: 'list_clients', inputSchema: { type: 'object', properties: {} } },
   { name: 'new_vulnerabilities', inputSchema: { type: 'object', properties: { client: clientProp, since: { type: 'string' }, min_severity: { type: 'string' }, limit: { type: 'integer' } } } },
   { name: 'security_findings', inputSchema: { type: 'object', properties: { client: clientProp, host: { type: 'string' } } } },
-  { name: 'list_jobs', inputSchema: { type: 'object', properties: { client: clientProp, limit: { type: 'integer' } } } },
+  { name: 'list_jobs', inputSchema: { type: 'object', properties: { client: clientProp, since: { type: 'string' }, limit: { type: 'integer' } } } },
   { name: 'get_job', inputSchema: { type: 'object', properties: { client: clientProp, id: { type: 'string' } }, required: ['id'] } },
 ];
 
